@@ -21,7 +21,6 @@ jobs:
       AMI_ID: ami-0c55b159cbfafe1f0  # Amazon Linux 2 AMI, adjust based on your region
       S3_BUCKET: buckket-ansible
       S3_FILE: ansible-file
-
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
