@@ -48,7 +48,7 @@ jobs:
     - name: Launch EC2 instances
       id: launch_instances
       run: |
-        INSTANCE_IDS=$(aws ec2 run-instances --image-id $AMI_ID --instance-type $INSTANCE_TYPE --key-name ec2_ansible --security-group-ids ${{ steps.create_sg.outputs.sg_id }} --count 2 --query 'Instances[*].InstanceId' --output text)
+        INSTANCE_IDS=$(aws ec2 run-instances --image-id $AMI_ID --instance-type $INSTANCE_TYPE --key-name ec2_ansible --security-group-ids ${{ steps.create_sg.outputs.sg_id }} --count 2 --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=new-ansi}]' --query 'Instances[*].InstanceId' --output text)
         echo "Launched EC2 instances: $INSTANCE_IDS"
         echo "::set-output name=instance_ids::$INSTANCE_IDS"
         # Wait for instances to be running
