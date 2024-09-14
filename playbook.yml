@@ -1,0 +1,104 @@
+---
+- hosts: nginx_servers
+  become: true
+  vars:
+    ansible_python_interpreter: /home/ubuntu/myenv/bin/python3.12  # Use virtual environment's Python
+    aws_access_key: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') }}"
+    aws_secret_key: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') }}"
+    aws_session_token: "{{ lookup('env', 'AWS_SESSION_TOKEN') }}"
+    aws_region: "us-east-1"  # Adjust based on your region
+    s3_bucket: "buckket-ansible"
+    s3_file: "ansible-file"
+    local_path: "/home/ubuntu/ansible-file"
+
+  tasks:
+    - name: Ensure necessary packages are installed for Python 3.12 (Ubuntu)
+      apt:
+        name:
+          - build-essential
+          - libssl-dev
+          - zlib1g-dev
+          - libncurses5-dev
+          - libgdbm-dev
+          - libnss3-dev
+          - libreadline-dev
+          - libffi-dev
+          - libsqlite3-dev
+          - wget
+          - libbz2-dev
+        state: present
+        update_cache: yes
+      when: ansible_distribution == 'Ubuntu'
+
+    - name: Download Python 3.12 source code (Ubuntu)
+      get_url:
+        url: https://www.python.org/ftp/python/3.12.0/Python-3.12.0.tgz
+        dest: /tmp/Python-3.12.0.tgz
+      when: ansible_distribution == 'Ubuntu'
+
+    - name: Extract Python 3.12 source code (Ubuntu)
+      ansible.builtin.unarchive:
+        src: /tmp/Python-3.12.0.tgz
+        dest: /tmp
+        remote_src: yes
+      when: ansible_distribution == 'Ubuntu'
+
+    - name: Compile and install Python 3.12 from source (Ubuntu)
+      shell: |
+        cd /tmp/Python-3.12.0
+        ./configure --enable-optimizations --with-ensurepip=install
+        make -j $(nproc)
+        sudo make altinstall
+      args:
+        creates: /usr/local/bin/python3.12
+      when: ansible_distribution == 'Ubuntu'
+
+    - name: Create a virtual environment using Python 3.12
+      command: python3.12 -m venv /home/ubuntu/myenv
+      args:
+        creates: /home/ubuntu/myenv
+      when: ansible_distribution == 'Ubuntu'
+
+    - name: Ensure pip is installed in the virtual environment
+      command: /home/ubuntu/myenv/bin/python -m ensurepip --upgrade
+      when: ansible_distribution == 'Ubuntu'
+
+    - name: Upgrade pip in the virtual environment
+      command: /home/ubuntu/myenv/bin/python -m pip install --upgrade pip
+      when: ansible_distribution == 'Ubuntu'
+
+    - name: Install required Python packages (boto3, botocore, packaging) in the virtual environment
+      command: /home/ubuntu/myenv/bin/pip install boto3 botocore packaging
+      when: ansible_distribution == 'Ubuntu'
+
+    - name: Install AWS CLI in the virtual environment
+      command: /home/ubuntu/myenv/bin/pip install awscli
+      when: ansible_distribution == 'Ubuntu'
+
+    - name: Ensure Ansible uses the virtual environment's Python interpreter
+      ansible.builtin.set_fact:
+        ansible_python_interpreter: /home/ubuntu/myenv/bin/python3.12
+
+    - name: Configure AWS CLI with session token (in virtual environment)
+      shell: |
+        /home/ubuntu/myenv/bin/aws configure set aws_access_key_id {{ aws_access_key }}
+        /home/ubuntu/myenv/bin/aws configure set aws_secret_access_key {{ aws_secret_key }}
+        /home/ubuntu/myenv/bin/aws configure set aws_session_token {{ aws_session_token }}
+        /home/ubuntu/myenv/bin/aws configure set region {{ aws_region }}
+      args:
+        creates: "/root/.aws/credentials"
+
+    - name: Download file from S3 bucket using AWS CLI from virtual environment
+      shell: /home/ubuntu/myenv/bin/aws s3 cp s3://{{ s3_bucket }}/{{ s3_file }} {{ local_path }}
+      args:
+        creates: "{{ local_path }}"  # Skip if the file already exists
+
+    - name: Check if file was downloaded
+      stat:
+        path: "{{ local_path }}"
+      register: file_downloaded
+
+    - name: File download result
+      debug:
+        msg: "File successfully downloaded from S3!"
+      when: file_downloaded.stat.exists
