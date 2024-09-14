@@ -3,7 +3,7 @@ name: EC2 Provisioning with Ansible
 on:
   push:
     branches:
-      - main
+      - playbk
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
