@@ -1,5 +1,4 @@
 name: EC2 Provisioning with Ansible
-
 on:
   push:
     branches:
