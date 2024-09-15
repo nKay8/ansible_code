@@ -4,7 +4,8 @@ on:
   push:
     branches:
       - playbk
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:  # Allow manual trigger 
+  
 
 jobs:
   provision_ec2:
