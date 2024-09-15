@@ -13,7 +13,6 @@ jobs:
 
     env:
       AWS_REGION: ${{ secrets.AWS_REGION }}
-      ROLE_ARN: arn:aws:iam::347588227728:role/GitHubBot  # Role to assume
       INSTANCE_TYPE: t2.micro  # EC2 instance type (can be adjusted)
       AMI_ID: ami-0c55b159cbfafe1f0  # Amazon Linux 2 AMI, adjust based on your region
       S3_BUCKET: buckket-ansible
@@ -48,7 +47,7 @@ jobs:
     - name: Assume AWS Role
       id: assume_role
       run: |
-        CREDS=$(aws sts assume-role --role-arn $ROLE_ARN --role-session-name GitHubActionsSession --region $AWS_REGION)
+        CREDS=$(aws sts assume-role --role-arn "${{ secrets.ROLE_ARN }}" --role-session-name GitHubActionsSession --region $AWS_REGION)
         echo "AWS_ACCESS_KEY_ID=$(echo $CREDS | jq -r .Credentials.AccessKeyId)" >> $GITHUB_ENV
         echo "AWS_SECRET_ACCESS_KEY=$(echo $CREDS | jq -r .Credentials.SecretAccessKey)" >> $GITHUB_ENV
         echo "AWS_SESSION_TOKEN=$(echo $CREDS | jq -r .Credentials.SessionToken)" >> $GITHUB_ENV
