@@ -1,4 +1,5 @@
 name: EC2 Provisioning with Ansible
+
 on:
   push:
     branches:
@@ -31,6 +32,11 @@ jobs:
       run: |
         pip install awscli
         aws --version
+
+    # Clear AWS credentials cache
+    - name: Clear AWS CLI cached credentials
+      run: |
+        rm -rf ~/.aws/cli/cache
 
     - name: Configure AWS CLI
       run: |
