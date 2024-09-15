@@ -36,9 +36,9 @@ jobs:
 
     - name: Configure AWS CLI
       run: |
-        aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
-        aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
-        aws configure set region $AWS_REGION
+        aws configure set aws_access_key_id "${{ secrets.AWS_ACCESS_KEY_ID }}"
+        aws configure set aws_secret_access_key "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+        aws configure set region "${{ secrets.AWS_REGION }}"
 
     - name: Assume AWS Role
       id: assume_role
@@ -47,7 +47,6 @@ jobs:
         echo "AWS_ACCESS_KEY_ID=$(echo $CREDS | jq -r .Credentials.AccessKeyId)" >> $GITHUB_ENV
         echo "AWS_SECRET_ACCESS_KEY=$(echo $CREDS | jq -r .Credentials.SecretAccessKey)" >> $GITHUB_ENV
         echo "AWS_SESSION_TOKEN=$(echo $CREDS | jq -r .Credentials.SessionToken)" >> $GITHUB_ENV
-        echo "AWS_SECURITY_TOKEN=$(echo $CREDS | jq -r .Credentials.SessionToken)" >> $GITHUB_ENV
 
     - name: Create Security Group
       id: create_sg
