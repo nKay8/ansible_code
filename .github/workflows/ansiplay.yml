@@ -27,6 +27,13 @@ jobs:
       with:
         python-version: '3.x'
 
+    - name: Clear AWS CLI Cache
+      run: |
+        aws configure set aws_access_key_id ""
+        aws configure set aws_secret_access_key ""
+        aws configure set aws_session_token ""
+        aws sts get-caller-identity --region $AWS_REGION || echo "No credentials found (cache cleared)"
+        
     - name: Install AWS CLI and jq
       run: |
         pip install awscli
@@ -39,11 +46,11 @@ jobs:
         aws configure set aws_secret_access_key "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
         aws configure set region "${{ secrets.AWS_REGION }}"
 
-    - name: Debug AWS CLI Configuration
-      run: |
-        echo "Configured AWS Access Key: ${AWS_ACCESS_KEY_ID}"
-        aws sts get-caller-identity --region $AWS_REGION
-        aws configure list
+    #- name: Debug AWS CLI Configuration
+    #  run: |
+    #    echo "Configured AWS Access Key: ${AWS_ACCESS_KEY_ID}"
+    #    aws sts get-caller-identity --region $AWS_REGION
+    #    aws configure list
 
     - name: Assume AWS Role
       id: assume_role
@@ -54,12 +61,7 @@ jobs:
         echo "AWS_SECRET_ACCESS_KEY=$(echo $CREDS | jq -r .Credentials.SecretAccessKey)" >> $GITHUB_ENV
         echo "AWS_SESSION_TOKEN=$(echo $CREDS | jq -r .Credentials.SessionToken)" >> $GITHUB_ENV
 
-    - name: Clear AWS CLI Cache
-      run: |
-        aws configure set aws_access_key_id ""
-        aws configure set aws_secret_access_key ""
-        aws configure set aws_session_token ""
-        aws sts get-caller-identity --region $AWS_REGION || echo "No credentials found (cache cleared)"
+    
 
     - name: Create Security Group
       id: create_sg
