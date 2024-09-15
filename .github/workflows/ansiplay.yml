@@ -40,6 +40,10 @@ jobs:
         aws configure set aws_secret_access_key "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
         aws configure set region "${{ secrets.AWS_REGION }}"
 
+    - name: Debug AWS Credentials
+      run: |
+        aws sts get-caller-identity --region $AWS_REGION
+
     - name: Assume AWS Role
       id: assume_role
       run: |
