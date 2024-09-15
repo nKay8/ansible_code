@@ -1,10 +1,9 @@
 name: EC2 Provisioning with Ansible
-
 on:
   push:
     branches:
       - playbk
-  workflow_dispatch:  # Allow manual trigger 
+  workflow_dispatch:  # Allow manual trigger
 
 jobs:
   provision_ec2:
@@ -28,17 +27,13 @@ jobs:
       with:
         python-version: '3.x'
 
-    - name: Install AWS CLI
+    - name: Install AWS CLI and jq
       run: |
         pip install awscli
+        sudo apt-get install -y jq
         aws --version
 
-    # Clear AWS credentials cache
-    - name: Clear AWS CLI cached credentials
-      run: |
-        rm -rf ~/.aws/cli/cache
-
-    - name: Configure AWS CLI
+    - name: Configure AWS CLI with Secrets
       run: |
         aws configure set aws_access_key_id "${{ secrets.AWS_ACCESS_KEY_ID }}"
         aws configure set aws_secret_access_key "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
@@ -46,16 +41,25 @@ jobs:
 
     - name: Debug AWS CLI Configuration
       run: |
-        aws configure list
+        echo "Configured AWS Access Key: ${AWS_ACCESS_KEY_ID}"
         aws sts get-caller-identity --region $AWS_REGION
+        aws configure list
 
     - name: Assume AWS Role
       id: assume_role
       run: |
         CREDS=$(aws sts assume-role --role-arn "${{ secrets.ROLE_ARN }}" --role-session-name GitHubActionsSession --region $AWS_REGION)
+        echo "CREDS: $CREDS"
         echo "AWS_ACCESS_KEY_ID=$(echo $CREDS | jq -r .Credentials.AccessKeyId)" >> $GITHUB_ENV
         echo "AWS_SECRET_ACCESS_KEY=$(echo $CREDS | jq -r .Credentials.SecretAccessKey)" >> $GITHUB_ENV
         echo "AWS_SESSION_TOKEN=$(echo $CREDS | jq -r .Credentials.SessionToken)" >> $GITHUB_ENV
+
+    - name: Clear AWS CLI Cache
+      run: |
+        aws configure set aws_access_key_id ""
+        aws configure set aws_secret_access_key ""
+        aws configure set aws_session_token ""
+        aws sts get-caller-identity --region $AWS_REGION || echo "No credentials found (cache cleared)"
 
     - name: Create Security Group
       id: create_sg
