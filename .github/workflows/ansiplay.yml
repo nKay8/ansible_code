@@ -5,7 +5,6 @@ on:
     branches:
       - playbk
   workflow_dispatch:  # Allow manual trigger 
-  
 
 jobs:
   provision_ec2:
@@ -15,7 +14,7 @@ jobs:
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_REGION: ${{ secrets.AWS_REGION }}
+      AWS_REGION: us-east-1  # Setting region explicitly
       SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
       EC2_USER: ubuntu  # Update this based on your EC2 instance type
       INSTANCE_TYPE: t2.micro  # EC2 instance type (can be adjusted)
@@ -26,7 +25,6 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v3
     
-
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -40,27 +38,27 @@ jobs:
     - name: Create Security Group
       id: create_sg
       run: |
-        SG_ID=$(aws ec2 create-security-group --group-name ansible-sg --description "Allow SSH and HTTP" --vpc-id $(aws ec2 describe-vpcs --query 'Vpcs[0].VpcId' --output text) --output text)
+        SG_ID=$(aws ec2 create-security-group --region $AWS_REGION --group-name ansible-sg --description "Allow SSH and HTTP" --vpc-id $(aws ec2 describe-vpcs --region $AWS_REGION --query 'Vpcs[0].VpcId' --output text) --output text)
         echo "Security group created with ID: $SG_ID"
-        aws ec2 authorize-security-group-ingress --group-id $SG_ID --protocol tcp --port 22 --cidr 0.0.0.0/0  # Allow SSH
-        aws ec2 authorize-security-group-ingress --group-id $SG_ID --protocol tcp --port 80 --cidr 0.0.0.0/0  # Allow HTTP
+        aws ec2 authorize-security-group-ingress --region $AWS_REGION --group-id $SG_ID --protocol tcp --port 22 --cidr 0.0.0.0/0  # Allow SSH
+        aws ec2 authorize-security-group-ingress --region $AWS_REGION --group-id $SG_ID --protocol tcp --port 80 --cidr 0.0.0.0/0  # Allow HTTP
         echo "::set-output name=sg_id::$SG_ID"
 
     - name: Launch EC2 instances
       id: launch_instances
       run: |
-        INSTANCE_IDS=$(aws ec2 run-instances --image-id $AMI_ID --instance-type $INSTANCE_TYPE --key-name ec2_ansible --security-group-ids ${{ steps.create_sg.outputs.sg_id }} --count 2 --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=new-ansi}]' --query 'Instances[*].InstanceId' --output text)
+        INSTANCE_IDS=$(aws ec2 run-instances --region $AWS_REGION --image-id $AMI_ID --instance-type $INSTANCE_TYPE --key-name ec2_ansible --security-group-ids ${{ steps.create_sg.outputs.sg_id }} --count 2 --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=new-ansi}]' --query 'Instances[*].InstanceId' --output text)
         echo "Launched EC2 instances: $INSTANCE_IDS"
         echo "::set-output name=instance_ids::$INSTANCE_IDS"
         # Wait for instances to be running
-        aws ec2 wait instance-running --instance-ids $INSTANCE_IDS
-        PUBLIC_IPS=$(aws ec2 describe-instances --instance-ids $INSTANCE_IDS --query 'Reservations[*].Instances[*].PublicIpAddress' --output text)
+        aws ec2 wait instance-running --region $AWS_REGION --instance-ids $INSTANCE_IDS
+        PUBLIC_IPS=$(aws ec2 describe-instances --region $AWS_REGION --instance-ids $INSTANCE_IDS --query 'Reservations[*].Instances[*].PublicIpAddress' --output text)
         echo "Public IPs: $PUBLIC_IPS"
         echo "::set-output name=public_ips::$PUBLIC_IPS"
 
     - name: Download file from S3
       run: |
-        aws s3 cp s3://$S3_BUCKET/$S3_FILE .
+        aws s3 cp s3://$S3_BUCKET/$S3_FILE . --region $AWS_REGION
 
     - name: Add SSH key
       run: |
