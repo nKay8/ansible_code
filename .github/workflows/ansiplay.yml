@@ -12,19 +12,18 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_REGION: us-east-1  # Setting region explicitly
-      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-      EC2_USER: ubuntu  # Update this based on your EC2 instance type
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      ROLE_ARN: arn:aws:iam::347588227728:role/GitHubBot  # Role to assume
       INSTANCE_TYPE: t2.micro  # EC2 instance type (can be adjusted)
       AMI_ID: ami-0c55b159cbfafe1f0  # Amazon Linux 2 AMI, adjust based on your region
       S3_BUCKET: buckket-ansible
       S3_FILE: ansible-file
+      EC2_USER: ubuntu  # Update this based on your EC2 instance type
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
-    
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -35,34 +34,43 @@ jobs:
         pip install awscli
         aws --version
 
+    - name: Assume AWS Role
+      id: assume_role
+      run: |
+        CREDS=$(aws sts assume-role --role-arn $ROLE_ARN --role-session-name GitHubActionsSession --region $AWS_REGION)
+        echo "AWS_ACCESS_KEY_ID=$(echo $CREDS | jq -r .Credentials.AccessKeyId)" >> $GITHUB_ENV
+        echo "AWS_SECRET_ACCESS_KEY=$(echo $CREDS | jq -r .Credentials.SecretAccessKey)" >> $GITHUB_ENV
+        echo "AWS_SESSION_TOKEN=$(echo $CREDS | jq -r .Credentials.SessionToken)" >> $GITHUB_ENV
+        echo "AWS_SECURITY_TOKEN=$(echo $CREDS | jq -r .Credentials.SessionToken)" >> $GITHUB_ENV
+
     - name: Create Security Group
       id: create_sg
       run: |
         SG_ID=$(aws ec2 create-security-group --region $AWS_REGION --group-name ansible-sg --description "Allow SSH and HTTP" --vpc-id $(aws ec2 describe-vpcs --region $AWS_REGION --query 'Vpcs[0].VpcId' --output text) --output text)
         echo "Security group created with ID: $SG_ID"
-        aws ec2 authorize-security-group-ingress --region $AWS_REGION --group-id $SG_ID --protocol tcp --port 22 --cidr 0.0.0.0/0  # Allow SSH
-        aws ec2 authorize-security-group-ingress --region $AWS_REGION --group-id $SG_ID --protocol tcp --port 80 --cidr 0.0.0.0/0  # Allow HTTP
+        aws ec2 authorize-security-group-ingress --group-id $SG_ID --protocol tcp --port 22 --cidr 0.0.0.0/0  # Allow SSH
+        aws ec2 authorize-security-group-ingress --group-id $SG_ID --protocol tcp --port 80 --cidr 0.0.0.0/0  # Allow HTTP
         echo "::set-output name=sg_id::$SG_ID"
 
     - name: Launch EC2 instances
       id: launch_instances
       run: |
-        INSTANCE_IDS=$(aws ec2 run-instances --region $AWS_REGION --image-id $AMI_ID --instance-type $INSTANCE_TYPE --key-name ec2_ansible --security-group-ids ${{ steps.create_sg.outputs.sg_id }} --count 2 --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=new-ansi}]' --query 'Instances[*].InstanceId' --output text)
+        INSTANCE_IDS=$(aws ec2 run-instances --image-id $AMI_ID --instance-type $INSTANCE_TYPE --key-name ec2_ansible --security-group-ids ${{ steps.create_sg.outputs.sg_id }} --count 2 --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=new-ansi}]' --query 'Instances[*].InstanceId' --output text)
         echo "Launched EC2 instances: $INSTANCE_IDS"
         echo "::set-output name=instance_ids::$INSTANCE_IDS"
         # Wait for instances to be running
-        aws ec2 wait instance-running --region $AWS_REGION --instance-ids $INSTANCE_IDS
-        PUBLIC_IPS=$(aws ec2 describe-instances --region $AWS_REGION --instance-ids $INSTANCE_IDS --query 'Reservations[*].Instances[*].PublicIpAddress' --output text)
+        aws ec2 wait instance-running --instance-ids $INSTANCE_IDS
+        PUBLIC_IPS=$(aws ec2 describe-instances --instance-ids $INSTANCE_IDS --query 'Reservations[*].Instances[*].PublicIpAddress' --output text)
         echo "Public IPs: $PUBLIC_IPS"
         echo "::set-output name=public_ips::$PUBLIC_IPS"
 
     - name: Download file from S3
       run: |
-        aws s3 cp s3://$S3_BUCKET/$S3_FILE . --region $AWS_REGION
+        aws s3 cp s3://$S3_BUCKET/$S3_FILE .
 
     - name: Add SSH key
       run: |
-        echo "${SSH_PRIVATE_KEY}" > ~/.ssh/id_rsa
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
 
     - name: Add EC2 instances to known_hosts
