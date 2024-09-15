@@ -88,3 +88,4 @@ jobs:
         for ip in ${{ steps.launch_instances.outputs.public_ips }}; do
           ansible-playbook -i "$ip," --private-key ~/.ssh/id_rsa --user "$EC2_USER" ansible/playbook.yml
         done
+        
